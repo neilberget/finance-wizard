@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { OnboardingManager } from './onboarding';
 
 config();
 
@@ -13,12 +14,28 @@ export interface AppConfig {
   selectedBudgetId?: string;
 }
 
-export function loadConfig(): AppConfig {
+export async function loadConfig(): Promise<AppConfig> {
   const requiredEnvVars = {
     ynabAccessToken: process.env.YNAB_ACCESS_TOKEN,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   };
 
+  const missingKeys = {
+    ynab: !requiredEnvVars.ynabAccessToken,
+    anthropic: !requiredEnvVars.anthropicApiKey,
+  };
+
+  if (missingKeys.ynab || missingKeys.anthropic) {
+    const onboardingManager = new OnboardingManager();
+    await onboardingManager.runOnboarding(missingKeys);
+    
+    // Reload environment variables after onboarding
+    require('dotenv').config();
+    requiredEnvVars.ynabAccessToken = process.env.YNAB_ACCESS_TOKEN;
+    requiredEnvVars.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  }
+
+  // Final validation
   for (const [key, value] of Object.entries(requiredEnvVars)) {
     if (!value) {
       throw new Error(`Missing required environment variable: ${key.toUpperCase()}`);
@@ -38,8 +55,8 @@ export function loadConfig(): AppConfig {
 }
 
 export function validateConfig(config: AppConfig): void {
-  if (!config.ynabAccessToken.startsWith('ynab-')) {
-    console.warn('Warning: YNAB access token should start with "ynab-"');
+  if (config.ynabAccessToken.length < 20 || !/^[a-zA-Z0-9]+$/.test(config.ynabAccessToken)) {
+    console.warn('Warning: YNAB access token format looks unusual');
   }
 
   if (!existsSync(config.dataDir)) {

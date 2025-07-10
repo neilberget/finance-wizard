@@ -25,7 +25,7 @@ program
     try {
       console.log(chalk.blue('🧙 Finance Wizard - Starting up...'));
       
-      const config = loadConfig();
+      const config = await loadConfig();
       validateConfig(config);
       
       const ynabClient = new YNABClient(config.ynabAccessToken);
@@ -52,7 +52,7 @@ program
     try {
       console.log(chalk.blue('Syncing data from YNAB...'));
       
-      const config = loadConfig();
+      const config = await loadConfig();
       validateConfig(config);
       
       const ynabClient = new YNABClient(config.ynabAccessToken);
@@ -74,7 +74,7 @@ program
     try {
       console.log(chalk.blue('Analyzing financial data...'));
       
-      const config = loadConfig();
+      const config = await loadConfig();
       validateConfig(config);
       
       const ynabClient = new YNABClient(config.ynabAccessToken);
@@ -146,7 +146,7 @@ program
   .option('-c, --clear', 'Clear budget selection')
   .action(async (options) => {
     try {
-      const config = loadConfig();
+      const config = await loadConfig();
       validateConfig(config);
       
       const ynabClient = new YNABClient(config.ynabAccessToken);
