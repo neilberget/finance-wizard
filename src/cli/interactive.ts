@@ -7,6 +7,8 @@ import { FinancialInsights } from '../types/analysis';
 import { YNABTransaction } from '../types/ynab';
 import { quickContextSetup } from './context-setup';
 import { ToolExecutor } from '../utils/tool-executor';
+import { ui } from '../utils/ui';
+import { borderedInput } from '../utils/bordered-input';
 
 interface InteractiveOptions {
   ynabClient: YNABClient;
@@ -49,10 +51,10 @@ export async function startInteractiveMode(options: InteractiveOptions): Promise
     console.log(chalk.gray(`Analyzed ${transactions.length} transactions from the last ${analysisMonths} months\n`));
 
     // Generate initial insights
-    console.log(chalk.blue('🔍 Generating AI insights...'));
+    console.log(ui.renderProgressMessage('Generating AI insights...'));
     const initialInsights = await aiChat.generateInsights(insights);
-    console.log(chalk.white(initialInsights));
-    console.log(chalk.gray('\n' + '─'.repeat(50) + '\n'));
+    console.log(ui.renderAssistantMessage(initialInsights));
+    console.log(ui.renderConversationSeparator());
 
     // Create tool executor
     const toolExecutor = new ToolExecutor(ynabClient, analyzer);
@@ -71,27 +73,29 @@ async function startChatLoop(
   aiChat: AIChat,
   toolExecutor: ToolExecutor
 ): Promise<void> {
-  console.log(chalk.blue('💬 Chat mode activated! Ask me anything about your finances.'));
-  console.log(chalk.gray('Type "help" for commands or "quit" to exit.\n'));
+  console.log(ui.renderSystemMessage('Chat mode activated! Ask me anything about your finances.'));
+  console.log(ui.renderSystemMessage('Type "help" for commands or "quit" to exit.'));
+  console.log();
 
   // Maintain conversation history for context
   const conversationHistory: any[] = [];
   const MAX_HISTORY_LENGTH = 20; // Keep last 20 messages
-
   while (true) {
-    const { message } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'message',
-        message: chalk.cyan('You:'),
-        validate: (input: string) => input.trim().length > 0 || 'Please enter a message',
-      },
-    ]);
+    let message: string;
+    
+    // Simple prompt input with bordered box
+    message = await borderedInput.prompt({
+      validate: (input: string) => input.trim().length > 0 || 'Please enter a message',
+    });
 
     const trimmedMessage = message.trim().toLowerCase();
+    
+    // Show user message with nice formatting
+    console.log(ui.renderUserMessage(message));
+    console.log();
 
     if (shouldQuit(trimmedMessage)) {
-      console.log(chalk.blue('👋 Thanks for using Finance Wizard!'));
+      console.log(ui.renderSystemMessage('Thanks for using Finance Wizard!'));
       break;
     }
 
@@ -116,12 +120,12 @@ async function startChatLoop(
     }
 
     if (trimmedMessage === 'recommendations') {
-      console.log(chalk.blue('🎯 Generating budget recommendations...'));
+      console.log(ui.renderProgressMessage('Generating budget recommendations...'));
       try {
         const recommendations = await aiChat.generateBudgetRecommendations(insights);
-        console.log(chalk.white(recommendations));
+        console.log(ui.renderAssistantMessage(recommendations));
       } catch (error) {
-        console.error(chalk.red('Error generating recommendations:'), error);
+        console.log(ui.renderErrorMessage(`Error generating recommendations: ${error}`));
       }
       continue;
     }
@@ -130,20 +134,22 @@ async function startChatLoop(
       const contextManager = aiChat.getContextManager();
       const context = contextManager.getContext();
       if (context) {
-        console.log(chalk.blue('\n👤 Your Personal Context:'));
-        console.log(chalk.gray('─'.repeat(30)));
-        console.log(contextManager.generateContextPrompt());
-        console.log(chalk.gray('\nTo update: run `finance-wizard context --setup`'));
+        const contextContent = `# Your Personal Context
+
+${contextManager.generateContextPrompt()}
+
+*To update: run \`finance-wizard context --setup\`*`;
+        console.log(ui.renderMarkdown(contextContent));
       } else {
-        console.log(chalk.yellow('\n⚠️  No personal context set up.'));
-        console.log(chalk.gray('Run `finance-wizard context --setup` to add your information.'));
+        console.log(ui.renderWarningMessage('No personal context set up.'));
+        console.log(ui.renderSystemMessage('Run `finance-wizard context --setup` to add your information.'));
       }
       continue;
     }
 
     // Regular chat
     try {
-      console.log(chalk.blue('🤖 AI:'), chalk.gray('Thinking...'));
+      console.log(ui.renderProgressMessage('Thinking...'));
       
       // Make a copy of conversation history for this request
       const currentHistory = [...conversationHistory];
@@ -154,7 +160,7 @@ async function startChatLoop(
       }, currentHistory);
       
       // Clear the "thinking" line
-      process.stdout.write('\u001b[1A\u001b[2K'); // Move up and clear line
+      ui.clearLine();
       
       // Add user message to history
       conversationHistory.push({
@@ -170,7 +176,7 @@ async function startChatLoop(
       
       // Show AI response
       if (chatResult.response) {
-        console.log(chalk.blue('🤖 AI:'), chalk.white(chatResult.response));
+        console.log(ui.renderAssistantMessage(chatResult.response));
         assistantMessage.content.push({
           type: 'text',
           text: chatResult.response
@@ -198,7 +204,7 @@ async function startChatLoop(
           const result = await toolExecutor.executeTool(toolCall);
           
           if (result.success) {
-            console.log(chalk.green(result.message));
+            console.log(ui.renderSuccessMessage(result.message));
             
             // If we synced or analyzed data, update our local state
             if (toolCall.name === 'sync_transactions' && result.data) {
@@ -213,7 +219,7 @@ async function startChatLoop(
               Object.assign(insights, result.data.insights);
             }
           } else {
-            console.log(chalk.red(result.message));
+            console.log(ui.renderErrorMessage(result.message));
           }
           
           // Store tool result for later
@@ -237,7 +243,7 @@ async function startChatLoop(
         });
         
         // Continue the conversation to let AI execute more tools or respond
-        console.log(chalk.blue('\n🤖 AI:'), chalk.gray('Continuing...'));
+        console.log(ui.renderProgressMessage('Continuing...'));
         
         const continuationResult = await aiChat.chat('', {
           insights,
@@ -245,11 +251,11 @@ async function startChatLoop(
         }, conversationHistory);
         
         // Clear the "continuing" line
-        process.stdout.write('\u001b[1A\u001b[2K');
+        ui.clearLine();
           
         // Handle continuation response
         if (continuationResult.response) {
-          console.log(chalk.blue('🤖 AI:'), chalk.white(continuationResult.response));
+          console.log(ui.renderAssistantMessage(continuationResult.response));
         }
         
         // Execute any additional tool calls
@@ -258,7 +264,7 @@ async function startChatLoop(
             const result = await toolExecutor.executeTool(toolCall);
             
             if (result.success) {
-              console.log(chalk.green(result.message));
+              console.log(ui.renderSuccessMessage(result.message));
               
               // Update state as needed
               if (toolCall.name === 'sync_transactions' && result.data) {
@@ -271,7 +277,7 @@ async function startChatLoop(
                 Object.assign(insights, result.data.insights);
               }
             } else {
-              console.log(chalk.red(result.message));
+              console.log(ui.renderErrorMessage(result.message));
             }
           }
         }
@@ -286,85 +292,79 @@ async function startChatLoop(
       }
       
     } catch (error) {
-      console.error(chalk.red('Error:'), error);
+      console.log(ui.renderErrorMessage(`Error: ${error}`));
     }
     
-    console.log(); // Empty line for readability
+    console.log(ui.renderConversationSeparator());
   }
 }
 
 function showHelp(): void {
-  console.log(chalk.yellow('\n📋 Available Commands:'));
-  console.log(chalk.gray('• help - Show this help message'));
-  console.log(chalk.gray('• summary - Show financial summary'));
-  console.log(chalk.gray('• savings - Show savings opportunities'));
-  console.log(chalk.gray('• trends - Show monthly trends'));
-  console.log(chalk.gray('• recommendations - Get budget recommendations'));
-  console.log(chalk.gray('• context - View your personal context'));
-  console.log(chalk.gray('• quit/exit - Exit the application'));
-  console.log(chalk.gray('\nOr just ask me anything about your finances!\n'));
+  const helpContent = `# Available Commands
+
+• **help** - Show this help message
+• **summary** - Show financial summary
+• **savings** - Show savings opportunities
+• **trends** - Show monthly trends
+• **recommendations** - Get budget recommendations
+• **context** - View your personal context
+• **quit/exit** - Exit the application
+
+Or just ask me anything about your finances!`;
+  
+  console.log(ui.renderMarkdown(helpContent));
 }
 
 function showSummary(insights: FinancialInsights): void {
-  console.log(chalk.yellow('\n📊 Financial Summary:'));
-  console.log(chalk.gray('─'.repeat(30)));
-  console.log(chalk.green(`Total Income: $${insights.totalIncome.toFixed(2)}`));
-  console.log(chalk.red(`Total Spent: $${insights.totalSpent.toFixed(2)}`));
-  console.log(chalk.blue(`Net Cash Flow: $${insights.netCashFlow.toFixed(2)}`));
+  const incomeColor = insights.totalIncome > 0 ? 'green' : 'red';
+  const spentColor = 'red';
+  const netFlowColor = insights.netCashFlow >= 0 ? 'green' : 'red';
   
-  console.log(chalk.yellow('\n🏆 Top Spending Categories:'));
-  insights.topSpendingCategories.slice(0, 5).forEach((cat, index) => {
-    console.log(
-      chalk.gray(`${index + 1}. ${cat.category}: `) +
-      chalk.white(`$${cat.totalAmount.toFixed(2)} `) +
-      chalk.gray(`(${cat.percentageOfTotal.toFixed(1)}%)`)
-    );
-  });
-  console.log();
+  const summaryContent = `# Financial Summary
+
+**Total Income:** $${insights.totalIncome.toFixed(2)}
+**Total Spent:** $${insights.totalSpent.toFixed(2)}
+**Net Cash Flow:** $${insights.netCashFlow.toFixed(2)}
+
+## Top Spending Categories
+
+${insights.topSpendingCategories.slice(0, 5).map((cat, index) => 
+    `${index + 1}. **${cat.category}**: $${cat.totalAmount.toFixed(2)} (${cat.percentageOfTotal.toFixed(1)}%)`
+  ).join('\n')}`;
+  
+  console.log(ui.renderMarkdown(summaryContent));
 }
 
 function showSavingsOpportunities(insights: FinancialInsights): void {
-  console.log(chalk.yellow('\n💰 Savings Opportunities:'));
-  console.log(chalk.gray('─'.repeat(30)));
-  
   if (insights.savingsOpportunities.length === 0) {
-    console.log(chalk.gray('No major savings opportunities identified.'));
+    console.log(ui.renderMarkdown('# Savings Opportunities\n\nNo major savings opportunities identified.'));
     return;
   }
 
-  insights.savingsOpportunities.slice(0, 5).forEach((opp, index) => {
-    const confidenceColor = opp.confidence === 'high' ? chalk.green : 
-                           opp.confidence === 'medium' ? chalk.yellow : chalk.red;
+  const opportunitiesContent = `# Savings Opportunities
+
+${insights.savingsOpportunities.slice(0, 5).map((opp, index) => {
+    const recommendations = opp.recommendations.length > 0 ? 
+      `\n\n**Recommendations:**\n${opp.recommendations.map(rec => `• ${rec}`).join('\n')}` : '';
     
-    console.log(
-      chalk.white(`${index + 1}. ${opp.description}`) +
-      chalk.gray(` (${confidenceColor(opp.confidence)} confidence)`)
-    );
-    console.log(chalk.green(`   Potential savings: $${opp.potentialSavings.toFixed(2)}`));
-    
-    if (opp.recommendations.length > 0) {
-      console.log(chalk.gray('   Recommendations:'));
-      opp.recommendations.forEach(rec => {
-        console.log(chalk.gray(`   • ${rec}`));
-      });
-    }
-    console.log();
-  });
+    return `## ${index + 1}. ${opp.description}
+
+**Confidence:** ${opp.confidence}  
+**Potential Savings:** $${opp.potentialSavings.toFixed(2)}${recommendations}`;
+  }).join('\n\n')}`;
+  
+  console.log(ui.renderMarkdown(opportunitiesContent));
 }
 
 function showTrends(insights: FinancialInsights): void {
-  console.log(chalk.yellow('\n📈 Monthly Trends:'));
-  console.log(chalk.gray('─'.repeat(30)));
+  const trendsContent = `# Monthly Trends
+
+${insights.monthlyTrends.map(trend => {
+    const netFlowIndicator = trend.netFlow >= 0 ? '✓' : '✗';
+    return `**${trend.month}:** Spent $${trend.spent.toFixed(2)}, Income $${trend.income.toFixed(2)}, Net $${trend.netFlow.toFixed(2)} ${netFlowIndicator}`;
+  }).join('\n')}`;
   
-  insights.monthlyTrends.forEach(trend => {
-    const netFlowColor = trend.netFlow >= 0 ? chalk.green : chalk.red;
-    console.log(
-      chalk.white(`${trend.month}: `) +
-      chalk.gray(`Spent $${trend.spent.toFixed(2)}, Income $${trend.income.toFixed(2)}, `) +
-      netFlowColor(`Net $${trend.netFlow.toFixed(2)}`)
-    );
-  });
-  console.log();
+  console.log(ui.renderMarkdown(trendsContent));
 }
 
 function shouldQuit(message: string): boolean {
