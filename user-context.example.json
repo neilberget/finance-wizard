@@ -1,0 +1,69 @@
+{
+  "personal": {
+    "name": "John Smith",
+    "age": 32,
+    "location": "San Francisco, CA",
+    "occupation": "Software Engineer"
+  },
+  "family": {
+    "maritalStatus": "married",
+    "children": 2,
+    "householdSize": 4
+  },
+  "financial": {
+    "annualIncome": 150000,
+    "monthlyIncome": 12500,
+    "primaryIncomeSource": "Software Engineering Salary",
+    "debtTotal": 45000,
+    "emergencyFundTarget": 25000,
+    "currentSavings": 18000
+  },
+  "goals": {
+    "shortTerm": [
+      "Build emergency fund to $25,000",
+      "Pay off credit card debt",
+      "Save for family vacation"
+    ],
+    "mediumTerm": [
+      "Save for house down payment",
+      "Start kids' college funds",
+      "Pay off student loans"
+    ],
+    "longTerm": [
+      "Retire by 55",
+      "Own home outright",
+      "Fund children's education"
+    ],
+    "monthlyBudgetTarget": 10000,
+    "savingsRate": 20
+  },
+  "preferences": {
+    "riskTolerance": "medium",
+    "investmentExperience": "intermediate",
+    "budgetingStyle": "flexible",
+    "priorityCategories": [
+      "Groceries",
+      "Dining Out",
+      "Entertainment",
+      "Childcare"
+    ]
+  },
+  "notes": {
+    "financialConcerns": [
+      "High childcare costs",
+      "Rising cost of living",
+      "Not saving enough for retirement"
+    ],
+    "upcomingExpenses": [
+      "New car purchase in 6 months",
+      "Home renovation next year",
+      "Summer vacation trip"
+    ],
+    "budgetChallenges": [
+      "Impulse purchases",
+      "Eating out too frequently",
+      "Kids' activities getting expensive"
+    ],
+    "additionalContext": "Working parents with busy schedules. Looking to optimize spending while maintaining quality of life for the family. Interested in increasing savings rate without feeling deprived."
+  }
+}
